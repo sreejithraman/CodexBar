@@ -35,11 +35,8 @@ struct KeychainCacheApplicationPathTests {
         let runningImage = URL(fileURLWithPath: path)
         #expect(KeychainCacheStore.appBundleURL(containing: runningImage)?.path == fixture.app.path)
         #expect(KeychainCacheStore.invokingApplicationPathsForCacheAccess(executableURL: runningImage) == [path])
-        #expect(self.normalizedPaths(
-            KeychainCacheStore.trustedApplicationPathsForCacheAccess(executableURL: runningImage)) == [
-            fixture.app.path,
-            fixture.helper.path,
-        ])
+        let trustedPaths = KeychainCacheStore.trustedApplicationPathsForCacheAccess(executableURL: runningImage)
+        #expect(self.normalizedPaths(trustedPaths) == [fixture.app.path, fixture.helper.path])
     }
 
     @Test(arguments: [false, true])
