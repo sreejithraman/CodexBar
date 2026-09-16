@@ -4,6 +4,7 @@
 
 ### Fixed
 - Updates: show Sparkle's update UI from Settings after an update downloads in the background, and keep staged updates reachable after dismissing the install dialog.
+- CLI: recognize the containing app when checking credential-cache access through installed CLI symlinks (#3690). Thanks @sreejithraman!
 
 ## 0.60.4 — 2026-09-16
 
