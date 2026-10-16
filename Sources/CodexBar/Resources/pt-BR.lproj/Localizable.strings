@@ -1811,6 +1811,9 @@
 "Gateway URL" = "Gateway URL";
 "Gemini CLI login is no longer supported" = "O login Gemini CLI não é mais suportado";
 "Gemini CLI migration" = "Migração Gemini CLI";
+"Gemini app" = "Aplicativo Gemini";
+"Gemini CLI" = "Gemini CLI";
+"Gemini app limits use your browser account and are separate from Gemini CLI quotas." = "Os limites do aplicativo Gemini se aplicam à sua conta no navegador e são separados das cotas do Gemini CLI.";
 "Generated locally by CodexBar · Data through %@" = "Gerado localmente por CodexBar · Dados até %@";
 "GitHub cookies" = "GitHub cookies";
 "GitHub does not publish this value. Enter it to show a usage bar. Applies to the selected GitHub account." = "GitHub não publica esse valor. Insira-o para mostrar uma barra de uso. Aplica-se à conta GitHub selecionada.";
@@ -2676,3 +2679,7 @@
 "Claude desktop app" = "Aplicativo de desktop Claude";
 "Use Claude desktop app cookies" = "Usar cookies do aplicativo de desktop Claude";
 "For Web usage, follow the account signed into Claude.app instead of a browser." = "Para o uso na web, use a conta conectada ao Claude.app em vez da conta do navegador.";
+
+/* Munito provider credentials */
+"Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "Chave com permissão de leitura de dados da conta (Admin API). Ou defina MUNITO_API_KEY.";
+"Munito reports Admin API spend and limits, not local token cost history." = "O Munito relata gastos e limites da Admin API, não o histórico local de custos de tokens.";

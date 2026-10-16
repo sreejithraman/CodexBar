@@ -1825,6 +1825,9 @@
 "Gateway URL" = "網關URL";
 "Gemini CLI login is no longer supported" = "Gemini CLI 不再支援登入";
 "Gemini CLI migration" = "Gemini CLI 遷移";
+"Gemini app" = "Gemini 應用程式";
+"Gemini CLI" = "Gemini CLI";
+"Gemini app limits use your browser account and are separate from Gemini CLI quotas." = "Gemini 應用程式的限額適用於你在瀏覽器中登入的帳號，與 Gemini CLI 配額相互獨立。";
 "Generated locally by CodexBar · Data through %@" = "由 CodexBar 本地生成 · 數據截至 %@";
 "GitHub cookies" = "GitHub Cookie";
 "GitHub does not publish this value. Enter it to show a usage bar. Applies to the selected GitHub account." = "GitHub 不公佈該值。輸入它以顯示使用欄。適用於選定的 GitHub 帳戶。";
@@ -2654,3 +2657,7 @@
 "Claude desktop app" = "Claude 桌面應用程式";
 "Use Claude desktop app cookies" = "使用 Claude 桌面應用程式的 Cookie";
 "For Web usage, follow the account signed into Claude.app instead of a browser." = "查詢網頁用量時，使用 Claude.app 中登入的帳號，而非瀏覽器帳號。";
+
+/* Munito provider credentials */
+"Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "具備讀取帳戶資料（Admin API）權限的金鑰。或設定 MUNITO_API_KEY。";
+"Munito reports Admin API spend and limits, not local token cost history." = "Munito 回報 Admin API 的支出與上限，而非本機 token 成本歷史。";

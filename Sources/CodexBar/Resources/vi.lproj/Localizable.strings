@@ -1812,6 +1812,9 @@
 "Gateway URL" = "Cổng URL";
 "Gemini CLI login is no longer supported" = "Đăng nhập Gemini CLI không còn được hỗ trợ";
 "Gemini CLI migration" = "Di chuyển Gemini CLI";
+"Gemini app" = "Ứng dụng Gemini";
+"Gemini CLI" = "Gemini CLI";
+"Gemini app limits use your browser account and are separate from Gemini CLI quotas." = "Giới hạn của ứng dụng Gemini áp dụng cho tài khoản của bạn trong trình duyệt và tách biệt với hạn mức của Gemini CLI.";
 "Generated locally by CodexBar · Data through %@" = "Được tạo cục bộ bởi CodexBar · Dữ liệu đến %@";
 "GitHub cookies" = "GitHub cookies";
 "GitHub does not publish this value. Enter it to show a usage bar. Applies to the selected GitHub account." = "GitHub không công bố giá trị này. Nhập nó để hiển thị một thanh sử dụng. Áp dụng cho tài khoản GitHub đã chọn.";
@@ -2677,3 +2680,7 @@
 "Claude desktop app" = "Ứng dụng Claude trên máy tính";
 "Use Claude desktop app cookies" = "Dùng cookie của ứng dụng Claude trên máy tính";
 "For Web usage, follow the account signed into Claude.app instead of a browser." = "Đối với mức sử dụng web, dùng tài khoản đã đăng nhập trong Claude.app thay vì tài khoản trình duyệt.";
+
+/* Munito provider credentials */
+"Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "Khoá có quyền đọc dữ liệu tài khoản (Admin API). Hoặc đặt MUNITO_API_KEY.";
+"Munito reports Admin API spend and limits, not local token cost history." = "Munito báo cáo chi tiêu và giới hạn của Admin API, không phải lịch sử chi phí token cục bộ.";

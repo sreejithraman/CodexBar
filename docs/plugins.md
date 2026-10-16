@@ -72,6 +72,9 @@ See [WorkBuddy](workbuddy.md) for the request contract, bounded optional reset l
 [X API](xapi.md) uses the same cookie host with a bundled `ct0` header echo for account discovery and developer-console
 credits. Its script preserves dollar balances and debt without receiving cookie values or adding a native fetcher.
 
+[Gemini app](gemini.md) uses `gemini-web` for explicit web-source quotas on both engines. Request-URL-scoped,
+nonpersistent cookie sessions use the shared access gate; the existing Gemini CLI OAuth source stays native.
+
 [Claude Platform](claudeplatform.md) sends the opaque `sessionKey` cookie through the same cookie host, so its script
 never sees cookie values. It lists organizations, then reads required `prepaid/credits` (a 403 tries the next API
 organization) and optional `current_spend`, whose failures keep the balance. Both plugin engines run it.
@@ -616,6 +619,12 @@ exported as a cloud account snapshot: its ownership can only be verified on the 
 [Exa](exa.md) reads selected-key monthly spend using a support-enabled Team Management service key and API key ID.
 [TinyApi](tinyapi.md) reads aggregate available credits through its website session and the shared cookie host.
 These plugins omit undocumented reset dates, credit-bucket splits, and live request-rate headroom.
+
+## Spend-limit providers
+
+[Munito](munito.md) reads today's and this month's spend against the organization's spend limits from the Admin API
+with a bearer key that holds Read account data permission. The organization read is best-effort; missing or zero
+limits keep the spend rows without a percentage window, and no reset time is guessed.
 
 ## Generative media credit providers
 
