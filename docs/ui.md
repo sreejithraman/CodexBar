@@ -12,7 +12,8 @@ read_when:
 - Dock presence follows startup and actual window transitions instead of rescanning windows on every app update. Scheduled Sparkle alerts still request temporary Dock presence, including alerts shown behind another app.
 - Menu → Highlight menu cards on hover is on by default. Turn it off to keep normal text and usage-bar colors on provider cards, Overview cards, and Refresh while hovering. Keyboard selection stays visible; clicks and submenus are unchanged. The choice persists locally across restarts.
 - The provider sidebar keeps saved order and the one-click alphabetical toggle (enabled first). The adjacent
-  menu offers Only enabled providers and Restore default order. Search matches service names, provider IDs,
+  menu offers Only show enabled providers and Restore default order. Restore is disabled when the saved order
+  is already the default and alphabetical sorting is off. Search matches service names, provider IDs,
   CLI names, and CLI aliases, ignoring case and accents.
 - Browsing filters do not rewrite provider configuration or menu bar order. Dragging is available only in the
   unfiltered saved-order view and retains hidden plugin positions. Restore default order resets built-in service
@@ -69,6 +70,12 @@ read_when:
 - Display → Menu Bar → Layout provides presets plus a token editor. Tokens can be clicked to append, dragged from the
   palette, reordered between one or two lines, dragged out, or removed with Delete. Layouts can be global or overridden
   per provider. Manual edits select the Custom preset.
+- To hide Session, Weekly, and Scoped weekly percentage prefixes (such as `5h` and `W`), turn off **Show window labels**
+  next to **Monospaced digits**. It defaults on and applies to all layouts. Percentages keep their full VoiceOver
+  descriptions; named provider lanes, named allowances, Spend currency symbols, and progress-bar labels remain visible.
+  The preference is stored separately as `menuBarLayoutShowWindowLabels`; saved layouts and V5/V6 projections are unchanged.
+- For a provider-specific bare Session percentage, select Codex or Claude in Layout, remove the existing percentage,
+  and add the **second Session %** chip from Usage (the provider's primary lane). This works with window labels enabled.
 - For Codex or Claude weekly usage without a `W` prefix, select that provider in Layout, remove the existing percentage,
   and add the **second Weekly %** chip from Usage (the provider's secondary lane). Repeat for the other provider
   if needed. The first **Weekly %** is a semantic window token and keeps its prefix; lane tokens omit it.

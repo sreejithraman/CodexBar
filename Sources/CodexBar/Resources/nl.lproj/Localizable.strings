@@ -675,6 +675,8 @@
 "overview_rows_follow_order" = "Overzichtsrijen volgen altijd de volgorde van de provider.";
 "overview_no_providers_selected" = "Geen aanbieders geselecteerd";
 "agent_sessions_title" = "Agentsessies";
+"agent_sessions_remote_title" = "Externe sessies (Tailscale / SSH)";
+"agent_sessions_remote_subtitle" = "Ontdek externe hosts en maak verbinding. Schakel uit om alleen deze Mac te volgen.";
 "agent_sessions_subtitle" = "Toon lokale en via SSH gevonden Codex- en Claude Code-sessies in het menu.";
 "agent_sessions_hosts_title" = "Aanvullende SSH-hosts";
 "agent_sessions_footer" = "Macs op uw tailnet worden automatisch gevonden. Lokale sessies worden elke 30 seconden vernieuwd; externe hosts elke 60 seconden en wanneer het menu wordt geopend.";
@@ -1440,6 +1442,7 @@
 "menu_bar_layout_size_regular" = "Normaal";
 "menu_bar_layout_size_large" = "Groot";
 "menu_bar_layout_monospaced_digits" = "Cijfers met vaste breedte";
+"menu_bar_layout_show_window_labels" = "Periodelabels tonen";
 "menu_bar_layout_gap" = "Tussenruimte";
 "menu_bar_layout_gap_tight" = "Krap";
 "menu_bar_layout_gap_regular" = "Normaal";
@@ -2200,6 +2203,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "Opgeslagen in ~/.codexbar/config.json. Maak er een aan op console.x.ai onder Instellingen > Beheersleutels; gevolgtrekking API-sleutels worden niet geaccepteerd.";
 "xai-..." = "xai-...";
 "Team ID" = "Team ID";
+"Vercel access token" = "Vercel-toegangstoken";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "Optioneel. Toont je persoonlijke budget in plaats van teamtegoed. Opgeslagen in het lokale configuratiebestand van CodexBar. Of stel VERCEL_ACCESS_TOKEN in.";
+"Open Vercel tokens" = "Vercel-tokens openen";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Vereist samen met een Vercel-toegangstoken. Of stel VERCEL_TEAM_ID in.";
 "Required. Shown in the xAI Console URL and team settings." = "Vereist. Weergegeven in de xAI-console URL en teaminstellingen.";
 "Sakana AI cost summary is not supported." = "Sakana AI-kostenoverzicht wordt niet ondersteund.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "Opgeslagen in ~/.codexbar/config.json. Kopieer de Sakana AI-console Cookie-verzoekheader.";
@@ -2557,7 +2564,7 @@
 "Clear filters" = "Filters wissen";
 "Change provider order" = "Volgorde van aanbieders wijzigen";
 "Provider sorting" = "Aanbieders sorteren";
-"Only enabled providers" = "Alleen ingeschakelde aanbieders";
+"Only show enabled providers" = "Alleen ingeschakelde aanbieders tonen";
 "Restore default order" = "Standaardvolgorde herstellen";
 "Also restores the provider order in the menu bar. Can be undone." = "Herstelt ook de volgorde van aanbieders in de menubalk. Kan ongedaan worden gemaakt.";
 "Local Codex details; excluded from combined totals." = "Lokale Codex-details; niet opgenomen in de gecombineerde totalen.";
@@ -2680,3 +2687,13 @@
 /* Munito provider credentials */
 "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "Sleutel met machtiging Accountgegevens lezen (Admin API). Of stel MUNITO_API_KEY in.";
 "Munito reports Admin API spend and limits, not local token cost history." = "Munito meldt uitgaven en limieten van de Admin API, niet de lokale tokenkostenhistorie.";
+
+"Show all accounts in Overview" = "Alle accounts in het overzicht tonen";
+
+"Expand cached account usage. The six-provider limit still applies." = "Klap geselecteerde aanbieders uit met gebruiksgegevens van accounts uit de cache. De limiet van zes aanbieders blijft gelden.";
+"Edit" = "Bewerken";
+"Move up" = "Omhoog";
+"Move down" = "Omlaag";
+"Leave blank to keep the saved credential." = "Laat leeg om de opgeslagen inloggegevens te behouden.";
+
+"No personal budget configured" = "Geen persoonlijk budget ingesteld";

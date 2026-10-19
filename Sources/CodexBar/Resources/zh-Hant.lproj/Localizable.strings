@@ -674,6 +674,8 @@
 "overview_rows_follow_order" = "概覽列一律依提供者順序排列。";
 "overview_no_providers_selected" = "未選擇提供者";
 "agent_sessions_title" = "Agent 工作階段";
+"agent_sessions_remote_title" = "遠端工作階段（Tailscale / SSH）";
+"agent_sessions_remote_subtitle" = "探索並連線至遠端主機。關閉後僅監控此 Mac。";
 "agent_sessions_subtitle" = "在選單中顯示本機及透過 SSH 發現的 Codex 和 Claude Code 工作階段。";
 "agent_sessions_hosts_title" = "其他 SSH 主機";
 "agent_sessions_footer" = "系統會自動發現 tailnet 上的 Mac。本機工作階段每 30 秒重新整理一次；遠端主機每 60 秒以及開啟選單時重新整理。";
@@ -1471,6 +1473,7 @@
 "menu_bar_layout_size_regular" = "一般";
 "menu_bar_layout_size_large" = "大";
 "menu_bar_layout_monospaced_digits" = "等寬數字";
+"menu_bar_layout_show_window_labels" = "顯示時段標籤";
 "menu_bar_layout_gap" = "間距";
 "menu_bar_layout_gap_tight" = "緊湊";
 "menu_bar_layout_gap_regular" = "一般";
@@ -2183,6 +2186,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "儲存在~/.codexbar/config.json中。在「設定」>「管理金鑰」下的 console.x.ai 建立一個；推斷 API 金鑰不被接受。";
 "xai-..." = "xai-...";
 "Team ID" = "團隊 ID";
+"Vercel access token" = "Vercel 存取權杖";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "選用。顯示你的個人預算，而非團隊額度。儲存在 CodexBar 的本機設定檔中。或設定 VERCEL_ACCESS_TOKEN。";
+"Open Vercel tokens" = "開啟 Vercel 權杖";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "使用 Vercel 存取權杖時必填。或設定 VERCEL_TEAM_ID。";
 "Required. Shown in the xAI Console URL and team settings." = "必填。顯示在 xAI 控制台 URL 和團隊設定中。";
 "Sakana AI cost summary is not supported." = "暫不支持 Sakana AI 費用匯總。";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "儲存在~/.codexbar/config.json中。複製 Sakana AI 控制台 Cookie 請求標頭。";
@@ -2536,7 +2543,7 @@
 "Clear filters" = "清除篩選";
 "Change provider order" = "更改供應商順序";
 "Provider sorting" = "供應商排序";
-"Only enabled providers" = "只顯示已啟用";
+"Only show enabled providers" = "只顯示已啟用";
 "Restore default order" = "恢復預設順序";
 "Also restores the provider order in the menu bar. Can be undone." = "同時恢復選單列中的供應商順序。可以復原。";
 "Local Codex details; excluded from combined totals." = "本機 Codex 詳細資料；不計入合併總計。";
@@ -2661,3 +2668,13 @@
 /* Munito provider credentials */
 "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "具備讀取帳戶資料（Admin API）權限的金鑰。或設定 MUNITO_API_KEY。";
 "Munito reports Admin API spend and limits, not local token cost history." = "Munito 回報 Admin API 的支出與上限，而非本機 token 成本歷史。";
+
+"Show all accounts in Overview" = "在總覽中顯示所有帳戶";
+
+"Expand cached account usage. The six-provider limit still applies." = "使用快取的帳戶用量展開所選供應商。仍最多顯示六個供應商。";
+"Edit" = "編輯";
+"Move up" = "上移";
+"Move down" = "下移";
+"Leave blank to keep the saved credential." = "留空以保留已儲存的憑證。";
+
+"No personal budget configured" = "尚未設定個人預算";
