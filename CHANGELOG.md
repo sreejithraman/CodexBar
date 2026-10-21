@@ -10,7 +10,7 @@
 
 ### Fixed
 
-- OpenCode Go: read v2-only local databases, include attributed compaction costs, and keep valid v2 usage when a legacy copy has invalid costs.
+- OpenCode Go: read v2-only local history, include attributed compaction costs, and retain valid v2 usage when a legacy copy has invalid costs (#4587). Thanks @sreejithraman!
 - Grok: restore the weekly Credits window on zero-usage weeks when ACP omits the percentage, while preserving prepaid balances and leaving unvalidated usage unknown (#4674, #4679). Thanks @LeoLin990405 and @psl75011!
 - Linux CLI: prevent static musl builds from crashing when scanning non-empty Codex session files, with a regression check for musl and glibc builds (#4672, #4673). Thanks @harjothkhara and @psl75011!
 
