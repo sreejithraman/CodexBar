@@ -971,7 +971,7 @@
 "%@ / %@ (%@ remaining)" = "%@ / %@（剩余 %@）";
 "%@/%@ left" = "剩余 %@ / %@";
 "Gemini Flash" = "Gemini Flash";
-"Regenerates %@" = "%@后恢复";
+"Regenerates %@" = "%@恢复";
 "used after next regen" = "下次恢复后已使用";
 "after next regen" = "下次恢复后";
 "Near full" = "接近全满";
@@ -2691,3 +2691,5 @@
 "Leave blank to keep the saved credential." = "留空以保留已保存的凭据。";
 
 "No personal budget configured" = "尚未配置个人预算";
+
+"monthly_daily_target_format" = "每天约 %@，可用至重置";
