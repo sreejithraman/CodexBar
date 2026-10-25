@@ -37,6 +37,7 @@ struct OpenCodeGoCLICredentialsReader: Sendable {
         let dataHome = environment["XDG_DATA_HOME"].flatMap { path in
             path.hasPrefix("/") ? URL(fileURLWithPath: path, isDirectory: true) : nil
         } ?? homeDirectory.appendingPathComponent(".local/share", isDirectory: true)
+        // Provider-specific by design: Go credentials share the OpenCode CLI data directory.
         let directory = dataHome.appendingPathComponent("opencode", isDirectory: true)
         self.authURL = directory.appendingPathComponent("auth.json")
         let filename = environment["OPENCODE_DB"] ?? "opencode.db"
@@ -139,6 +140,7 @@ struct OpenCodeGoCLICredentialsReader: Sendable {
         guard let credential = selected.first else { return nil }
         guard let data = credential.data else { throw OpenCodeGoCLICredentialsError.malformed }
         let value = try Self.decode(data)
+        // Provider-specific by design: Go accepts the shared OpenCode login only when it is OAuth.
         if credential.integration == "opencode", value.type != "oauth" { return nil }
         switch value.type {
         case "key", "api":
