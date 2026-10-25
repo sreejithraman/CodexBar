@@ -5,6 +5,7 @@ public enum OpenCodeGoProviderDescriptor {
     private static let credentials = ProviderCredentialAdapter.apiKey(
         environmentKey: OpenCodeGoSettingsReader.apiKeyEnvironmentKey,
         apiKeyDebugLabel: OpenCodeGoSettingsReader.apiKeyEnvironmentKey,
+        requiresAPIKeyForAPISource: false,
         resolve: OpenCodeGoSettingsReader.apiKey,
         tokenAccountSupport: TokenAccountSupport(
             title: "OpenCode Go accounts",
@@ -158,10 +159,7 @@ public enum OpenCodeGoProviderDescriptor {
     }
 
     private static func requiresScopedWebStrategy(context: ProviderFetchContext) -> Bool {
-        guard context.sourceMode == .auto else { return false }
-        return context.selectedTokenAccountID != nil || context.settings?.opencodego?.cookieSource == .manual ||
-            [context.settings?.opencodego?.workspaceID, context.env["CODEXBAR_OPENCODEGO_WORKSPACE_ID"]]
-            .contains { $0?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false }
+        context.sourceMode == .auto && OpenCodeGoSettingsReader.isExplicitlyScoped(context: context)
     }
 }
 
@@ -179,6 +177,7 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
     private let localSnapshotLoader: LocalSnapshotLoader
     private let webUsageOverlayFetcher: WebUsageOverlayFetcher
     private let apiUsageOverlayFetcher: APIUsageOverlayFetcher
+    private let cliCredentialLoader: OpenCodeGoUsageCredential.CLICredentialLoader
 
     private struct OverlayCookie {
         let header: String
@@ -202,12 +201,15 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
             try await OpenCodeGoUsageFetcher.fetchAPIUsage(
                 apiKey: apiKey,
                 timeout: context.webTimeout)
-        })
+        },
+        cliCredentialLoader: @escaping OpenCodeGoUsageCredential.CLICredentialLoader =
+            OpenCodeGoUsageCredential.loadCLI)
     {
         self.cookieHeaderResolver = cookieHeaderResolver
         self.localSnapshotLoader = localSnapshotLoader
         self.webUsageOverlayFetcher = webUsageOverlayFetcher
         self.apiUsageOverlayFetcher = apiUsageOverlayFetcher
+        self.cliCredentialLoader = cliCredentialLoader
     }
 
     func isAvailable(_: ProviderFetchContext) async -> Bool {
@@ -229,17 +231,23 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
     private func snapshot(context: ProviderFetchContext) async throws -> SnapshotResult {
         var snapshot = try self.localSnapshotLoader(context)
         var source = "local"
-        if let apiKey = OpenCodeGoSettingsReader.apiKey(environment: context.env) {
-            do {
-                snapshot = try await snapshot.applyingWebUsage(self.apiUsageOverlayFetcher(context, apiKey))
-                source = "local+api"
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch let error as URLError where error.code == .cancelled {
-                throw CancellationError()
-            } catch {
-                // A session can still provide authoritative quota when the API is unavailable.
+        do {
+            if let credential = try OpenCodeGoUsageCredential.resolve(
+                context: context,
+                cliCredentialLoader: self.cliCredentialLoader)
+            {
+                snapshot = try await snapshot.applyingWebUsage(self.apiUsageOverlayFetcher(context, credential.token))
+                source = "local+\(credential.source.rawValue)"
+                if credential.source == .cli {
+                    return SnapshotResult(snapshot: snapshot, sourceLabel: source, quotaIsAuthoritative: true)
+                }
             }
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
+        } catch {
+            // A session can still provide authoritative quota when API or CLI credentials are unavailable.
         }
         let fallback = SnapshotResult(
             snapshot: snapshot,
@@ -271,8 +279,7 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
                     quotaIsAuthoritative: !web.isBalanceOnly)
             }
             guard source == "local", context.includeOptionalUsage else { return fallback }
-            let workspaceOverride = context.settings?.opencodego?.workspaceID
-                ?? context.env["CODEXBAR_OPENCODEGO_WORKSPACE_ID"]
+            let workspaceOverride = OpenCodeGoSettingsReader.workspaceID(context: context)
             let zenBalanceStart = ContinuousClock.now
             let zenBalanceTask = Task<Double?, Error> {
                 do {
@@ -317,8 +324,7 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
         context: ProviderFetchContext,
         cookieHeader: String) async throws -> OpenCodeGoUsageSnapshot?
     {
-        let workspaceOverride = context.settings?.opencodego?.workspaceID
-            ?? context.env["CODEXBAR_OPENCODEGO_WORKSPACE_ID"]
+        let workspaceOverride = OpenCodeGoSettingsReader.workspaceID(context: context)
         do {
             return try await OpenCodeGoUsageFetcher.fetchUsage(
                 cookieHeader: cookieHeader,
@@ -364,18 +370,33 @@ struct OpenCodeGoAPIUsageFetchStrategy: ProviderFetchStrategy {
     let id: String = "opencodego.api"
     let kind: ProviderFetchKind = .apiToken
 
+    private let cliCredentialLoader: OpenCodeGoUsageCredential.CLICredentialLoader
+    private let usageFetcher: OpenCodeGoLocalUsageFetchStrategy.APIUsageOverlayFetcher
+
+    init(
+        cliCredentialLoader: @escaping OpenCodeGoUsageCredential.CLICredentialLoader =
+            OpenCodeGoUsageCredential.loadCLI,
+        usageFetcher: @escaping OpenCodeGoLocalUsageFetchStrategy.APIUsageOverlayFetcher = { context, token in
+            try await OpenCodeGoUsageFetcher.fetchAPIUsage(apiKey: token, timeout: context.webTimeout)
+        })
+    {
+        self.cliCredentialLoader = cliCredentialLoader
+        self.usageFetcher = usageFetcher
+    }
+
     func isAvailable(_: ProviderFetchContext) async -> Bool {
         true
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = OpenCodeGoSettingsReader.apiKey(environment: context.env) else {
+        guard let credential = try OpenCodeGoUsageCredential.resolve(
+            context: context,
+            cliCredentialLoader: self.cliCredentialLoader)
+        else {
             throw OpenCodeGoSettingsError.missingAPIKey
         }
-        let snapshot = try await OpenCodeGoUsageFetcher.fetchAPIUsage(
-            apiKey: apiKey,
-            timeout: context.webTimeout)
-        return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "api")
+        let snapshot = try await self.usageFetcher(context, credential.token)
+        return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: credential.source.rawValue)
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
@@ -408,8 +429,7 @@ struct OpenCodeGoUsageFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let workspaceOverride = context.settings?.opencodego?.workspaceID
-            ?? context.env["CODEXBAR_OPENCODEGO_WORKSPACE_ID"]
+        let workspaceOverride = OpenCodeGoSettingsReader.workspaceID(context: context)
         let cookieSource = context.settings?.opencodego?.cookieSource ?? .auto
         do {
             let cookieHeader = try Self.resolveCookieHeader(context: context, allowCached: true)
@@ -480,7 +500,7 @@ enum OpenCodeGoSettingsError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingAPIKey:
-            "No OpenCode Go API key configured. Set OPENCODE_API_KEY or add apiKey to the CodexBar config."
+            "No OpenCode Go API key or usable CLI login found. Sign in with OpenCode or configure OPENCODE_API_KEY."
         case .missingCookie:
             "No OpenCode Go session cookies found in browsers."
         case .invalidCookie:

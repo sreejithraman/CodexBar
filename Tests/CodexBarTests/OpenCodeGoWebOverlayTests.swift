@@ -110,6 +110,82 @@ struct OpenCodeGoWebOverlayTests {
     }
 
     @Test
+    func `active CLI login replaces estimated quotas without browser access`() async throws {
+        let strategy = OpenCodeGoLocalUsageFetchStrategy(
+            cookieHeaderResolver: { _, _ in
+                Issue.record("A working CLI login must not import browser cookies")
+                throw OpenCodeGoSettingsError.missingCookie
+            },
+            localSnapshotLoader: { _ in Self.localEstimate() },
+            webUsageOverlayFetcher: { _, _ in
+                Issue.record("A working CLI login must not fetch another browser account")
+                return nil
+            },
+            apiUsageOverlayFetcher: { _, token in
+                #expect(token == "cli_access")
+                return try OpenCodeGoUsageFetcher.parseAPIUsage(
+                    text: """
+                    {"usage": {
+                      "rolling": {"percent": 100, "resetInSec": 15900},
+                      "weekly": {"percent": 80, "resetInSec": 68760},
+                      "monthly": {"percent": 90, "resetInSec": 1548000}
+                    }}
+                    """,
+                    now: Self.updatedAt)
+            },
+            cliCredentialLoader: { _ in "cli_access" })
+
+        let result = try await strategy.fetch(self.makeContext(includeOptionalUsage: false))
+
+        #expect(result.sourceLabel == "local+cli")
+        #expect(result.usage.dataConfidence != .estimated)
+        #expect(result.usage.primary?.usedPercent == 100)
+        #expect(result.usage.secondary?.usedPercent == 80)
+        #expect(result.usage.tertiary?.usedPercent == 90)
+        #expect(result.usage.tertiary?.resetsAt == Self.updatedAt.addingTimeInterval(1_548_000))
+        #expect(result.usage.opencodegoUsage?.daily.first?.costUSD == 11.52)
+    }
+
+    @Test
+    func `CLI credential cancellation propagates without browser fallback`() async {
+        let strategy = OpenCodeGoLocalUsageFetchStrategy(
+            cookieHeaderResolver: { _, _ in
+                Issue.record("Cancellation must not import cookies")
+                throw OpenCodeGoSettingsError.missingCookie
+            },
+            localSnapshotLoader: { _ in Self.localEstimate() },
+            cliCredentialLoader: { _ in throw CancellationError() })
+
+        await #expect(throws: CancellationError.self) {
+            try await strategy.fetch(self.makeContext(includeOptionalUsage: false))
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func `unusable CLI login falls back to browser quotas or a marked estimate`(browserAvailable: Bool) async throws {
+        try await self.withEmptyCookieCache {
+            let strategy = OpenCodeGoLocalUsageFetchStrategy(
+                cookieHeaderResolver: { _, _ in
+                    guard browserAvailable else { throw OpenCodeGoSettingsError.missingCookie }
+                    return "auth=fixture"
+                },
+                localSnapshotLoader: { _ in Self.localEstimate() },
+                webUsageOverlayFetcher: { _, _ in Self.webUsage() },
+                apiUsageOverlayFetcher: { _, token in
+                    #expect(token == "rejected-cli")
+                    throw OpenCodeGoUsageError.invalidCredentials
+                },
+                cliCredentialLoader: { _ in "rejected-cli" })
+
+            let result = try await strategy.fetch(self.makeContext(includeOptionalUsage: false))
+
+            #expect(result.sourceLabel == (browserAvailable ? "local+web" : "local"))
+            #expect((result.usage.dataConfidence == .estimated) == !browserAvailable)
+            #expect(result.usage.tertiary?.usedPercent == (browserAvailable ? 64 : 100))
+        }
+    }
+
+    @Test
     func `missing and rejected discovered sessions preserve the marked local estimate`() async throws {
         try await self.withEmptyCookieCache {
             let missing = OpenCodeGoLocalUsageFetchStrategy(
@@ -118,7 +194,8 @@ struct OpenCodeGoWebOverlayTests {
                 webUsageOverlayFetcher: { _, _ in
                     Issue.record("Missing cookies must not reach the server")
                     return nil
-                })
+                },
+                cliCredentialLoader: { _ in nil })
             let missingResult = try await missing.fetch(self.makeContext(includeOptionalUsage: false))
             #expect(missingResult.sourceLabel == "local")
             #expect(missingResult.usage.dataConfidence == .estimated)
@@ -129,7 +206,8 @@ struct OpenCodeGoWebOverlayTests {
                     return "auth=expired"
                 },
                 localSnapshotLoader: { _ in Self.localEstimate() },
-                webUsageOverlayFetcher: { _, _ in throw OpenCodeGoUsageError.invalidCredentials })
+                webUsageOverlayFetcher: { _, _ in throw OpenCodeGoUsageError.invalidCredentials },
+                cliCredentialLoader: { _ in nil })
             let rejectedResult = try await rejected.fetch(self.makeContext(includeOptionalUsage: false))
             #expect(rejectedResult.sourceLabel == "local")
             #expect(rejectedResult.usage.dataConfidence == .estimated)
@@ -152,7 +230,8 @@ struct OpenCodeGoWebOverlayTests {
                         cookieHeader: "auth=replacement",
                         sourceLabel: "fixture")
                     throw OpenCodeGoUsageError.invalidCredentials
-                })
+                },
+                cliCredentialLoader: { _ in nil })
             _ = try await strategy.fetch(self.makeContext(includeOptionalUsage: false))
             #expect(CookieHeaderCache.load(provider: .opencodego)?.cookieHeader == "auth=replacement")
         }
@@ -163,7 +242,8 @@ struct OpenCodeGoWebOverlayTests {
         try await self.withEmptyCookieCache {
             let strategy = OpenCodeGoLocalUsageFetchStrategy(
                 cookieHeaderResolver: { _, _ in throw URLError(.cancelled) },
-                localSnapshotLoader: { _ in Self.localEstimate() })
+                localSnapshotLoader: { _ in Self.localEstimate() },
+                cliCredentialLoader: { _ in nil })
             await #expect(throws: CancellationError.self) {
                 try await strategy.fetch(self.makeContext(includeOptionalUsage: false))
             }
@@ -179,7 +259,8 @@ struct OpenCodeGoWebOverlayTests {
                     throw OpenCodeGoSettingsError.missingCookie
                 },
                 localSnapshotLoader: { _ in Self.localEstimate() },
-                apiUsageOverlayFetcher: { _, _ in Self.webUsage() })
+                apiUsageOverlayFetcher: { _, _ in Self.webUsage() },
+                cliCredentialLoader: { _ in nil })
             let result = try await strategy.fetch(self.makeContext(
                 includeOptionalUsage: false,
                 env: [OpenCodeGoSettingsReader.apiKeyEnvironmentKey: "synthetic-api-key"]))
@@ -202,7 +283,8 @@ struct OpenCodeGoWebOverlayTests {
                 webUsageOverlayFetcher: { _, header in
                     #expect(header == "auth=discovered")
                     return Self.webUsage()
-                })
+                },
+                cliCredentialLoader: { _ in nil })
             let result = try await strategy.fetch(self.makeContext(includeOptionalUsage: false))
             #expect(discoveries.values == [false])
             #expect(result.sourceLabel == "local+web")
@@ -289,7 +371,8 @@ struct OpenCodeGoWebOverlayTests {
             webUsageOverlayFetcher: { _, cookieHeader in
                 observedCookies.append(cookieHeader)
                 return Self.webUsage(zenBalanceUSD: 42.5)
-            })
+            },
+            cliCredentialLoader: { _ in nil })
 
         let result = try await strategy.fetch(self.makeContext(settings: self.makeManualCookieSettings()))
 
@@ -320,7 +403,8 @@ struct OpenCodeGoWebOverlayTests {
             webUsageOverlayFetcher: { _, cookieHeader in
                 observedCookies.append(cookieHeader)
                 return Self.webUsage()
-            })
+            },
+            cliCredentialLoader: { _ in nil })
 
         let result = try await strategy.fetch(self.makeContext(
             settings: settings,
@@ -337,7 +421,8 @@ struct OpenCodeGoWebOverlayTests {
     func `manual token authentication failure is surfaced instead of returning local estimate`() async {
         let strategy = OpenCodeGoLocalUsageFetchStrategy(
             localSnapshotLoader: { _ in Self.localEstimate() },
-            webUsageOverlayFetcher: { _, _ in throw OpenCodeGoUsageError.invalidCredentials })
+            webUsageOverlayFetcher: { _, _ in throw OpenCodeGoUsageError.invalidCredentials },
+            cliCredentialLoader: { _ in nil })
 
         do {
             _ = try await strategy.fetch(self.makeContext(settings: self.makeManualCookieSettings()))
@@ -370,7 +455,8 @@ struct OpenCodeGoWebOverlayTests {
                     }}
                     """,
                     now: Self.updatedAt.addingTimeInterval(3))
-            })
+            },
+            cliCredentialLoader: { _ in nil })
 
         let result = try await strategy.fetch(self.makeContext(
             settings: self.makeManualCookieSettings(),
@@ -393,7 +479,8 @@ struct OpenCodeGoWebOverlayTests {
     func `local strategy keeps local estimate when web overlay is unavailable`() async throws {
         let strategy = OpenCodeGoLocalUsageFetchStrategy(
             localSnapshotLoader: { _ in Self.localEstimate() },
-            webUsageOverlayFetcher: { _, _ in nil })
+            webUsageOverlayFetcher: { _, _ in nil },
+            cliCredentialLoader: { _ in nil })
 
         let result = try await strategy.fetch(self.makeContext(
             includeOptionalUsage: false,
@@ -410,7 +497,8 @@ struct OpenCodeGoWebOverlayTests {
             localSnapshotLoader: { _ in Self.localEstimate() },
             webUsageOverlayFetcher: { _, _ in
                 OpenCodeGoUsageSnapshot.zenBalanceOnly(balanceUSD: 42.5, updatedAt: Self.updatedAt)
-            })
+            },
+            cliCredentialLoader: { _ in nil })
 
         let result = try await strategy.fetch(self.makeContext(settings: self.makeManualCookieSettings()))
 
@@ -432,7 +520,8 @@ struct OpenCodeGoWebOverlayTests {
             webUsageOverlayFetcher: { _, cookieHeader in
                 webCalls.append(cookieHeader)
                 return Self.webUsage()
-            })
+            },
+            cliCredentialLoader: { _ in nil })
         let settings = ProviderSettingsSnapshot.make(opencodego: .init(
             cookieSource: .off,
             manualCookieHeader: nil,
@@ -450,7 +539,8 @@ struct OpenCodeGoWebOverlayTests {
     func `local strategy propagates cancellation from the web overlay`() async {
         let strategy = OpenCodeGoLocalUsageFetchStrategy(
             localSnapshotLoader: { _ in Self.localEstimate() },
-            webUsageOverlayFetcher: { _, _ in throw CancellationError() })
+            webUsageOverlayFetcher: { _, _ in throw CancellationError() },
+            cliCredentialLoader: { _ in nil })
 
         await #expect(throws: CancellationError.self) {
             try await strategy.fetch(self.makeContext(settings: self.makeManualCookieSettings()))
@@ -461,7 +551,8 @@ struct OpenCodeGoWebOverlayTests {
     func `local strategy propagates url session cancellation from the web overlay`() async {
         let strategy = OpenCodeGoLocalUsageFetchStrategy(
             localSnapshotLoader: { _ in Self.localEstimate() },
-            webUsageOverlayFetcher: { _, _ in throw URLError(.cancelled) })
+            webUsageOverlayFetcher: { _, _ in throw URLError(.cancelled) },
+            cliCredentialLoader: { _ in nil })
 
         await #expect(throws: CancellationError.self) {
             try await strategy.fetch(self.makeContext(settings: self.makeManualCookieSettings()))
@@ -478,7 +569,8 @@ struct OpenCodeGoWebOverlayTests {
                 webUsageOverlayFetcher: { _, cookieHeader in
                     webCalls.append(cookieHeader)
                     return Self.webUsage()
-                })
+                },
+                cliCredentialLoader: { _ in nil })
 
             let result = try await strategy.fetch(self.makeContext(includeOptionalUsage: false))
 
@@ -495,7 +587,8 @@ struct OpenCodeGoWebOverlayTests {
         try await self.withCachedCookie {
             let strategy = OpenCodeGoLocalUsageFetchStrategy(
                 localSnapshotLoader: { _ in Self.localEstimate() },
-                webUsageOverlayFetcher: { _, _ in throw OpenCodeGoUsageError.invalidCredentials })
+                webUsageOverlayFetcher: { _, _ in throw OpenCodeGoUsageError.invalidCredentials },
+                cliCredentialLoader: { _ in nil })
 
             let result = try await strategy.fetch(self.makeContext(includeOptionalUsage: false))
 
@@ -510,7 +603,8 @@ struct OpenCodeGoWebOverlayTests {
         try await self.withCachedCookie {
             let strategy = OpenCodeGoLocalUsageFetchStrategy(
                 localSnapshotLoader: { _ in Self.localEstimate() },
-                webUsageOverlayFetcher: { _, _ in throw URLError(.timedOut) })
+                webUsageOverlayFetcher: { _, _ in throw URLError(.timedOut) },
+                cliCredentialLoader: { _ in nil })
 
             let result = try await strategy.fetch(self.makeContext(includeOptionalUsage: false))
 
@@ -529,7 +623,8 @@ struct OpenCodeGoWebOverlayTests {
                 webUsageOverlayFetcher: { _, cookieHeader in
                     observedCookies.append(cookieHeader)
                     return Self.webUsage()
-                })
+                },
+                cliCredentialLoader: { _ in nil })
 
             let result = try await strategy.fetch(self.makeContext(includeOptionalUsage: false))
 

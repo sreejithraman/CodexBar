@@ -13,4 +13,14 @@ public enum OpenCodeGoSettingsReader {
         else { return nil }
         return value
     }
+
+    static func workspaceID(context: ProviderFetchContext) -> String? {
+        SettingsValue.cleaned(context.settings?.opencodego?.workspaceID)
+            ?? SettingsValue.cleaned(context.env["CODEXBAR_OPENCODEGO_WORKSPACE_ID"])
+    }
+
+    static func isExplicitlyScoped(context: ProviderFetchContext) -> Bool {
+        context.selectedTokenAccountID != nil || context.settings?.opencodego?.cookieSource == .manual ||
+            self.workspaceID(context: context) != nil
+    }
 }
