@@ -23,4 +23,19 @@ public enum OpenCodeGoSettingsReader {
         context.selectedTokenAccountID != nil || context.settings?.opencodego?.cookieSource == .manual ||
             self.workspaceID(context: context) != nil
     }
+
+    typealias CLICredentialLoader = @Sendable (ProviderFetchContext) throws -> String?
+
+    static func loadCLICredential(context: ProviderFetchContext) throws -> String? {
+        try OpenCodeGoLocalUsageReader.loadCLICredential(environment: context.env)
+    }
+
+    static func usageCredential(
+        context: ProviderFetchContext,
+        cliCredentialLoader: CLICredentialLoader) throws -> (token: String, source: String)?
+    {
+        if let apiKey = self.apiKey(environment: context.env) { return (apiKey, "api") }
+        guard context.sourceMode != .web, !self.isExplicitlyScoped(context: context) else { return nil }
+        return try cliCredentialLoader(context).map { ($0, "cli") }
+    }
 }

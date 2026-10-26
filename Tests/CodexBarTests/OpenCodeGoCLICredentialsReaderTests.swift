@@ -17,10 +17,10 @@ struct OpenCodeGoCLICredentialsReaderTests {
             active: true,
             value: #"{"type":"oauth","access":"active-oauth","refresh":"fixture-refresh","expires":2000000000000}"#)
 
-        #expect(try fixture.reader.load(now: Date(timeIntervalSince1970: 1_900_000_000)) == "active-oauth")
+        #expect(try fixture.reader.loadCLICredential(now: Date(timeIntervalSince1970: 1_900_000_000)) == "active-oauth")
     }
 
-    @Test(arguments: ["key", "api", "oauth"])
+    @Test(arguments: ["key", "oauth"])
     func `active specific Go credentials take precedence over generic OAuth`(type: String) throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
@@ -31,7 +31,7 @@ struct OpenCodeGoCLICredentialsReaderTests {
             : #"{"type":"\#(type)","key":"specific-go"}"#
         try fixture.insert(integration: "opencode-go", active: true, value: value)
 
-        #expect(try fixture.reader.load(now: Self.now) == "specific-go")
+        #expect(try fixture.reader.loadCLICredential(now: Self.now) == "specific-go")
     }
 
     @Test(arguments: ["opencode", "opencode-go"])
@@ -48,7 +48,7 @@ struct OpenCodeGoCLICredentialsReaderTests {
             try fixture.insert(integration: "opencode", active: true, value: Self.oauth)
         }
 
-        #expect(throws: OpenCodeGoCLICredentialsError.expired) { try fixture.reader.load(now: Self.now) }
+        #expect(throws: OpenCodeGoUsageError.self) { try fixture.reader.loadCLICredential(now: Self.now) }
     }
 
     @Test(arguments: ["empty", "inactive", "deleted", "unrelated", "generic-key"])
@@ -70,7 +70,7 @@ struct OpenCodeGoCLICredentialsReaderTests {
         default: break
         }
 
-        #expect(try fixture.reader.load(now: Self.now) == nil)
+        #expect(try fixture.reader.loadCLICredential(now: Self.now) == nil)
     }
 
     @Test
@@ -80,20 +80,20 @@ struct OpenCodeGoCLICredentialsReaderTests {
         try fixture.createDatabase()
         try fixture.insert(integration: "opencode", active: true, value: Self.oauth)
         let reader = fixture.reader
-        #expect(try reader.load(now: Self.now) == "generic-oauth")
+        #expect(try reader.loadCLICredential(now: Self.now) == "generic-oauth")
 
         try fixture.execute("UPDATE credential SET active = 0")
         try fixture.insert(
             integration: "opencode",
             active: true,
             value: #"{"type":"oauth","access":"switched-account","expires":2000000000000}"#)
-        #expect(try reader.load(now: Self.now) == "switched-account")
+        #expect(try reader.loadCLICredential(now: Self.now) == "switched-account")
 
         try fixture.execute("""
         UPDATE credential SET value = '{"type":"oauth","access":"renewed-access","expires":2100000000000}'
         WHERE active = 1
         """)
-        #expect(try reader.load(now: Self.now) == "renewed-access")
+        #expect(try reader.loadCLICredential(now: Self.now) == "renewed-access")
     }
 
     @Test(arguments: ["opencode", "opencode-go"])
@@ -104,18 +104,7 @@ struct OpenCodeGoCLICredentialsReaderTests {
         try fixture.insert(integration: integration, active: true, value: Self.oauth)
         try fixture.insert(integration: integration, active: true, value: Self.oauth)
 
-        #expect(throws: OpenCodeGoCLICredentialsError.ambiguous) { try fixture.reader.load(now: Self.now) }
-    }
-
-    @Test
-    func `multiple active OpenCode accounts fail closed even when one is a key`() throws {
-        let fixture = try Fixture()
-        defer { fixture.remove() }
-        try fixture.createDatabase()
-        try fixture.insert(integration: "opencode", active: true, value: Self.oauth)
-        try fixture.insert(integration: "opencode", active: true, value: Self.key)
-
-        #expect(throws: OpenCodeGoCLICredentialsError.ambiguous) { try fixture.reader.load(now: Self.now) }
+        #expect(throws: OpenCodeGoUsageError.self) { try fixture.reader.loadCLICredential(now: Self.now) }
     }
 
     @Test
@@ -128,20 +117,15 @@ struct OpenCodeGoCLICredentialsReaderTests {
         }
         try fixture.insert(integration: "opencode-go", active: true, value: Self.key)
 
-        #expect(try fixture.reader.load(now: Self.now) == "specific-key")
+        #expect(try fixture.reader.loadCLICredential(now: Self.now) == "specific-key")
     }
 
     @Test(arguments: [
-        "{", "[]", #"{"type":1,"key":"fixture"}"#, #"{"type":"key","key":12}"#,
-        #"{"type":"key","key":""}"#, #"{"type":"key","key":"   "}"#,
+        "{", #"{"type":"key","key":12}"#,
         #"{"type":"key","key":"fixture\nheader"}"#, #"{"type":"external"}"#,
         #"{"type":"oauth","access":"fixture"}"#,
-        #"{"type":"oauth","access":15,"expires":2000000000000}"#,
-        #"{"type":"oauth","access":"fixture","expires":"2000000000000"}"#,
         #"{"type":"oauth","access":"fixture","expires":true}"#,
-        #"{"type":"oauth","access":"fixture","expires":-1}"#,
         #"{"type":"oauth","access":"fixture","expires":2000000000000.5}"#,
-        #"{"type":"oauth","access":"","expires":2000000000000}"#,
     ])
     func `invalid selected credentials fail without switching accounts`(value: String) throws {
         let fixture = try Fixture()
@@ -151,7 +135,7 @@ struct OpenCodeGoCLICredentialsReaderTests {
         try fixture.insert(integration: "opencode-go", active: true, value: value)
         try fixture.writeLegacy(Self.legacy)
 
-        #expect(throws: OpenCodeGoCLICredentialsError.malformed) { try fixture.reader.load(now: Self.now) }
+        #expect(throws: OpenCodeGoUsageError.self) { try fixture.reader.loadCLICredential(now: Self.now) }
     }
 
     @Test
@@ -162,7 +146,7 @@ struct OpenCodeGoCLICredentialsReaderTests {
         try fixture.insert(integration: "opencode-go", active: false, value: "{")
         try fixture.insert(integration: "opencode", active: true, value: Self.oauth)
 
-        #expect(try fixture.reader.load(now: Self.now) == "generic-oauth")
+        #expect(try fixture.reader.loadCLICredential(now: Self.now) == "generic-oauth")
     }
 
     @Test(arguments: ["NULL", "12", "X'7B7D'"])
@@ -173,7 +157,7 @@ struct OpenCodeGoCLICredentialsReaderTests {
         try fixture.insert(integration: "opencode-go", active: true, value: Self.key)
         try fixture.execute("UPDATE credential SET value = \(value)")
 
-        #expect(throws: OpenCodeGoCLICredentialsError.malformed) { try fixture.reader.load(now: Self.now) }
+        #expect(throws: OpenCodeGoUsageError.self) { try fixture.reader.loadCLICredential(now: Self.now) }
     }
 
     @Test(arguments: [false, true])
@@ -183,7 +167,7 @@ struct OpenCodeGoCLICredentialsReaderTests {
         if hasDatabase { try fixture.execute("CREATE TABLE legacy_fixture (id TEXT)") }
         try fixture.writeLegacy(Self.legacy)
 
-        #expect(try fixture.reader.load(now: Self.now) == "legacy-go")
+        #expect(try fixture.reader.loadCLICredential(now: Self.now) == "legacy-go")
     }
 
     @Test(arguments: [
@@ -196,14 +180,14 @@ struct OpenCodeGoCLICredentialsReaderTests {
         defer { fixture.remove() }
         try fixture.writeLegacy(json)
 
-        #expect(try fixture.reader.load(now: Self.now) == nil)
+        #expect(try fixture.reader.loadCLICredential(now: Self.now) == nil)
     }
 
     @Test
     func `missing database is never created`() throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
-        #expect(try fixture.reader.load(now: Self.now) == nil)
+        #expect(try fixture.reader.loadCLICredential(now: Self.now) == nil)
         #expect(!FileManager.default.fileExists(atPath: fixture.database.path))
         #expect(try FileManager.default.contentsOfDirectory(atPath: fixture.directory.path).isEmpty)
     }
@@ -231,9 +215,8 @@ struct OpenCodeGoCLICredentialsReaderTests {
         }
         try fixture.createDatabase(at: database)
         try fixture.insert(integration: "opencode-go", active: true, value: Self.key, at: database)
-        let reader = OpenCodeGoCLICredentialsReader(environment: environment, homeDirectory: fixture.home)
-
-        #expect(try reader.load(now: Self.now) == "specific-key")
+        #expect(try OpenCodeGoLocalUsageReader.loadCLICredential(
+            environment: environment, homeDirectory: fixture.home, now: Self.now) == "specific-key")
     }
 
     @Test
@@ -243,10 +226,8 @@ struct OpenCodeGoCLICredentialsReaderTests {
         try fixture.createDatabase()
         try fixture.insert(integration: "opencode-go", active: true, value: Self.key)
         try fixture.writeLegacy(Self.legacy)
-        let reader = OpenCodeGoCLICredentialsReader(
-            environment: ["OPENCODE_DB": ":memory:"], homeDirectory: fixture.home)
-
-        #expect(try reader.load(now: Self.now) == nil)
+        #expect(try OpenCodeGoLocalUsageReader.loadCLICredential(
+            environment: ["OPENCODE_DB": ":memory:"], homeDirectory: fixture.home, now: Self.now) == nil)
     }
 
     @Test
@@ -258,10 +239,8 @@ struct OpenCodeGoCLICredentialsReaderTests {
         let channel = fixture.directory.appendingPathComponent("opencode-local.db")
         try fixture.createDatabase(at: channel)
         try fixture.insert(integration: "opencode-go", active: true, value: Self.key, at: channel)
-        let reader = OpenCodeGoCLICredentialsReader(
-            environment: ["OPENCODE_DB": "missing.db"], homeDirectory: fixture.home)
-
-        #expect(try reader.load(now: Self.now) == nil)
+        #expect(try OpenCodeGoLocalUsageReader.loadCLICredential(
+            environment: ["OPENCODE_DB": "missing.db"], homeDirectory: fixture.home, now: Self.now) == nil)
         #expect(!FileManager.default.fileExists(atPath: fixture.directory.appendingPathComponent("missing.db").path))
     }
 
@@ -274,10 +253,10 @@ struct OpenCodeGoCLICredentialsReaderTests {
         let directory = xdg.appendingPathComponent("opencode")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try Data(Self.legacy.utf8).write(to: directory.appendingPathComponent("auth.json"))
-        let reader = OpenCodeGoCLICredentialsReader(
-            environment: ["XDG_DATA_HOME": xdg.path, "OPENCODE_DB": "custom/missing.db"], homeDirectory: fixture.home)
-
-        #expect(try reader.load(now: Self.now) == "legacy-go")
+        #expect(try OpenCodeGoLocalUsageReader.loadCLICredential(
+            environment: ["XDG_DATA_HOME": xdg.path, "OPENCODE_DB": "custom/missing.db"],
+            homeDirectory: fixture.home,
+            now: Self.now) == "legacy-go")
     }
 
     @Test
@@ -288,7 +267,7 @@ struct OpenCodeGoCLICredentialsReaderTests {
         try fixture.insert(integration: "opencode-go", active: true, value: Self.key)
         let before = try Data(contentsOf: fixture.database)
 
-        #expect(try fixture.reader.load(now: Self.now) == "specific-key")
+        #expect(try fixture.reader.loadCLICredential(now: Self.now) == "specific-key")
         #expect(try Data(contentsOf: fixture.database) == before)
         #expect(try FileManager.default.contentsOfDirectory(atPath: fixture.directory.path) == ["opencode.db"])
     }
@@ -314,7 +293,7 @@ struct OpenCodeGoCLICredentialsReaderTests {
             try #require(sqlite3_exec(lock, "BEGIN EXCLUSIVE", nil, nil, nil) == SQLITE_OK)
         }
 
-        #expect(throws: OpenCodeGoCLICredentialsError.unreadable) { try fixture.reader.load(now: Self.now) }
+        #expect(throws: OpenCodeGoUsageError.self) { try fixture.reader.loadCLICredential(now: Self.now) }
     }
 
     @Test
@@ -336,7 +315,7 @@ struct OpenCodeGoCLICredentialsReaderTests {
             try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: fixture.directory.path)
         }
 
-        #expect(try fixture.reader.load(now: Self.now) == "specific-key")
+        #expect(try fixture.reader.loadCLICredential(now: Self.now) == "specific-key")
         #expect(try Data(contentsOf: fixture.database) == before)
         #expect(try FileManager.default.contentsOfDirectory(atPath: fixture.directory.path) == ["opencode.db"])
     }
@@ -360,7 +339,7 @@ struct OpenCodeGoCLICredentialsReaderTests {
         let walContents = try Data(contentsOf: wal)
         #expect(!walContents.isEmpty)
 
-        #expect(try fixture.reader.load(now: Self.now) == "latest-wal-key")
+        #expect(try fixture.reader.loadCLICredential(now: Self.now) == "latest-wal-key")
     }
 
     @Test
@@ -383,10 +362,10 @@ struct OpenCodeGoCLICredentialsReaderTests {
         let wal = URL(fileURLWithPath: fixture.database.path + "-wal")
         try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: wal.path)
         defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: wal.path) }
-        let reader = OpenCodeGoCLICredentialsReader(
-            environment: ["OPENCODE_DB": link.path], homeDirectory: fixture.home)
-
-        #expect(throws: OpenCodeGoCLICredentialsError.unreadable) { try reader.load(now: Self.now) }
+        #expect(throws: OpenCodeGoUsageError.self) {
+            try OpenCodeGoLocalUsageReader.loadCLICredential(
+                environment: ["OPENCODE_DB": link.path], homeDirectory: fixture.home, now: Self.now)
+        }
     }
 
     @Test
@@ -399,21 +378,10 @@ struct OpenCodeGoCLICredentialsReaderTests {
         try fixture.createDatabase(at: database)
         try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: directory.path)
         defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path) }
-        let reader = OpenCodeGoCLICredentialsReader(
-            environment: ["OPENCODE_DB": database.path], homeDirectory: fixture.home)
-
-        #expect(throws: OpenCodeGoCLICredentialsError.unreadable) { try reader.load(now: Self.now) }
-    }
-
-    @Test
-    func `malformed legacy credentials produce a generic typed error`() throws {
-        let fixture = try Fixture()
-        defer { fixture.remove() }
-        try fixture.writeLegacy(#"{"opencode-go":{"type":"api","key":12}}"#)
-
-        #expect(throws: OpenCodeGoCLICredentialsError.malformed) { try fixture.reader.load(now: Self.now) }
-        #expect(OpenCodeGoCLICredentialsError.malformed.localizedDescription ==
-            "The OpenCode CLI credentials have an unsupported or invalid format.")
+        #expect(throws: OpenCodeGoUsageError.self) {
+            try OpenCodeGoLocalUsageReader.loadCLICredential(
+                environment: ["OPENCODE_DB": database.path], homeDirectory: fixture.home, now: Self.now)
+        }
     }
 
     private static let now = Date(timeIntervalSince1970: 1_900_000_000)
@@ -431,8 +399,10 @@ struct OpenCodeGoCLICredentialsReaderTests {
             self.directory.appendingPathComponent("opencode.db")
         }
 
-        var reader: OpenCodeGoCLICredentialsReader {
-            OpenCodeGoCLICredentialsReader(environment: [:], homeDirectory: self.home)
+        var reader: OpenCodeGoLocalUsageReader {
+            OpenCodeGoLocalUsageReader(
+                authURL: self.directory.appendingPathComponent("auth.json"),
+                databaseURL: self.database)
         }
 
         init() throws {

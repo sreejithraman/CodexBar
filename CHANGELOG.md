@@ -2,6 +2,10 @@
 
 ## 0.81.1 — Unreleased
 
+### Fixed
+
+- OpenCode Go: use the active CLI login for server quotas when no configured key or usable browser session is available, preserving account selection and local cost history (#4771). Thanks @sreejithraman!
+
 ## 0.81.0 — 2026-10-24
 
 ### Highlights

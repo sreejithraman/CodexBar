@@ -110,7 +110,33 @@ struct OpenCodeGoWebOverlayTests {
     }
 
     @Test
-    func `active CLI login replaces estimated quotas without browser access`() async throws {
+    func `active CLI file supplies server quota when no API key or browser is configured`() async throws {
+        let dataHome = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let directory = dataHome.appendingPathComponent("opencode")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dataHome) }
+        try Data(#"{"opencode-go":{"type":"api","key":"synthetic-cli-key"}}"#.utf8)
+            .write(to: directory.appendingPathComponent("auth.json"))
+        let strategy = OpenCodeGoLocalUsageFetchStrategy(
+            localSnapshotLoader: { _ in Self.localEstimate() },
+            apiUsageOverlayFetcher: { _, token in
+                #expect(token == "synthetic-cli-key")
+                return Self.webUsage()
+            })
+        let settings = ProviderSettingsSnapshot.make(opencodego: .init(
+            cookieSource: .off, manualCookieHeader: nil, workspaceID: nil))
+
+        let result = try await strategy.fetch(self.makeContext(
+            includeOptionalUsage: false, settings: settings, env: ["XDG_DATA_HOME": dataHome.path]))
+
+        #expect(result.sourceLabel == "local+cli")
+        #expect(result.usage.dataConfidence != .estimated)
+        #expect(result.usage.tertiary?.usedPercent == 64)
+        #expect(result.usage.opencodegoUsage?.daily.first?.costUSD == 11.52)
+    }
+
+    @Test
+    func `active CLI login replaces estimated quotas when browser access is off`() async throws {
         let strategy = OpenCodeGoLocalUsageFetchStrategy(
             cookieHeaderResolver: { _, _ in
                 Issue.record("A working CLI login must not import browser cookies")
@@ -135,7 +161,9 @@ struct OpenCodeGoWebOverlayTests {
             },
             cliCredentialLoader: { _ in "cli_access" })
 
-        let result = try await strategy.fetch(self.makeContext(includeOptionalUsage: false))
+        let settings = ProviderSettingsSnapshot.make(opencodego: .init(
+            cookieSource: .off, manualCookieHeader: nil, workspaceID: nil))
+        let result = try await strategy.fetch(self.makeContext(includeOptionalUsage: false, settings: settings))
 
         #expect(result.sourceLabel == "local+cli")
         #expect(result.usage.dataConfidence != .estimated)
@@ -156,13 +184,17 @@ struct OpenCodeGoWebOverlayTests {
             localSnapshotLoader: { _ in Self.localEstimate() },
             cliCredentialLoader: { _ in throw CancellationError() })
 
+        let settings = ProviderSettingsSnapshot.make(opencodego: .init(
+            cookieSource: .off, manualCookieHeader: nil, workspaceID: nil))
         await #expect(throws: CancellationError.self) {
-            try await strategy.fetch(self.makeContext(includeOptionalUsage: false))
+            try await strategy.fetch(self.makeContext(includeOptionalUsage: false, settings: settings))
         }
     }
 
     @Test(arguments: [false, true])
-    func `unusable CLI login falls back to browser quotas or a marked estimate`(browserAvailable: Bool) async throws {
+    func `browser quotas precede the CLI and a rejected CLI leaves a marked estimate`(
+        browserAvailable: Bool) async throws
+    {
         try await self.withEmptyCookieCache {
             let strategy = OpenCodeGoLocalUsageFetchStrategy(
                 cookieHeaderResolver: { _, _ in
@@ -175,7 +207,10 @@ struct OpenCodeGoWebOverlayTests {
                     #expect(token == "rejected-cli")
                     throw OpenCodeGoUsageError.invalidCredentials
                 },
-                cliCredentialLoader: { _ in "rejected-cli" })
+                cliCredentialLoader: { _ in
+                    #expect(!browserAvailable)
+                    return "rejected-cli"
+                })
 
             let result = try await strategy.fetch(self.makeContext(includeOptionalUsage: false))
 
@@ -260,7 +295,10 @@ struct OpenCodeGoWebOverlayTests {
                 },
                 localSnapshotLoader: { _ in Self.localEstimate() },
                 apiUsageOverlayFetcher: { _, _ in Self.webUsage() },
-                cliCredentialLoader: { _ in nil })
+                cliCredentialLoader: { _ in
+                    Issue.record("An explicit key or usable browser session must precede the CLI account")
+                    return "another-account"
+                })
             let result = try await strategy.fetch(self.makeContext(
                 includeOptionalUsage: false,
                 env: [OpenCodeGoSettingsReader.apiKeyEnvironmentKey: "synthetic-api-key"]))
@@ -498,7 +536,10 @@ struct OpenCodeGoWebOverlayTests {
             webUsageOverlayFetcher: { _, _ in
                 OpenCodeGoUsageSnapshot.zenBalanceOnly(balanceUSD: 42.5, updatedAt: Self.updatedAt)
             },
-            cliCredentialLoader: { _ in nil })
+            cliCredentialLoader: { _ in
+                Issue.record("An explicit key or usable browser session must precede the CLI account")
+                return "another-account"
+            })
 
         let result = try await strategy.fetch(self.makeContext(settings: self.makeManualCookieSettings()))
 
@@ -624,7 +665,10 @@ struct OpenCodeGoWebOverlayTests {
                     observedCookies.append(cookieHeader)
                     return Self.webUsage()
                 },
-                cliCredentialLoader: { _ in nil })
+                cliCredentialLoader: { _ in
+                    Issue.record("An explicit key or usable browser session must precede the CLI account")
+                    return "another-account"
+                })
 
             let result = try await strategy.fetch(self.makeContext(includeOptionalUsage: false))
 

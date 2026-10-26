@@ -46,6 +46,14 @@ struct OpenCodeGoProviderStrategyTests {
         let descriptor = OpenCodeGoProviderDescriptor.makeDescriptor()
         let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(self.makeContext())
 
+        #expect(strategies.map(\.id) == ["opencodego.local", "opencodego.web", "opencodego.api"])
+    }
+
+    @Test
+    func `configured API key keeps precedence when local history is unavailable`() async {
+        let strategies = await OpenCodeGoProviderDescriptor.makeDescriptor().fetchPlan.pipeline
+            .resolveStrategies(self.makeContext(env: ["OPENCODE_API_KEY": "synthetic-key"]))
+
         #expect(strategies.map(\.id) == ["opencodego.local", "opencodego.api", "opencodego.web"])
     }
 
@@ -105,8 +113,8 @@ struct OpenCodeGoProviderStrategyTests {
         let environmentStrategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
             self.makeContext(env: ["CODEXBAR_OPENCODEGO_WORKSPACE_ID": " \t "]))
 
-        #expect(settingsStrategies.map(\.id) == ["opencodego.local", "opencodego.api", "opencodego.web"])
-        #expect(environmentStrategies.map(\.id) == ["opencodego.local", "opencodego.api", "opencodego.web"])
+        #expect(settingsStrategies.map(\.id) == ["opencodego.local", "opencodego.web", "opencodego.api"])
+        #expect(environmentStrategies.map(\.id) == ["opencodego.local", "opencodego.web", "opencodego.api"])
     }
 
     @Test
@@ -259,13 +267,13 @@ struct OpenCodeGoProviderStrategyTests {
     @Test
     func `API source surfaces an expired CLI login`() async {
         let strategy = OpenCodeGoAPIUsageFetchStrategy(
-            cliCredentialLoader: { _ in throw OpenCodeGoCLICredentialsError.expired },
+            cliCredentialLoader: { _ in throw OpenCodeGoUsageError.invalidCredentials },
             usageFetcher: { _, _ in
                 Issue.record("An expired login must not reach the usage endpoint")
                 throw OpenCodeGoUsageError.invalidCredentials
             })
 
-        await #expect(throws: OpenCodeGoCLICredentialsError.expired) {
+        await #expect(throws: OpenCodeGoUsageError.self) {
             try await strategy.fetch(self.makeContext(sourceMode: .api))
         }
     }
