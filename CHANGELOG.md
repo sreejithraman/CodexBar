@@ -2,6 +2,10 @@
 
 ## 0.82.1 — Unreleased
 
+### Fixed
+
+- OpenCode Go: use the active OpenCode CLI API key stored under `opencode` for server quotas instead of falling back to local estimates.
+
 ## 0.82.0 — 2026-10-26
 
 ### Highlights

@@ -7,6 +7,17 @@ import Testing
 
 struct OpenCodeGoCLICredentialsReaderTests {
     @Test
+    func `active OpenCode API key supplies Go quotas instead of stale legacy auth`() throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        try fixture.createDatabase()
+        try fixture.writeLegacy(Self.legacy)
+        try fixture.insert(integration: "opencode", active: true, value: Self.key)
+
+        #expect(try fixture.reader.loadCLICredential(now: Self.now) == "specific-key")
+    }
+
+    @Test
     func `active OpenCode OAuth takes precedence over an inactive Go key`() throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
@@ -20,12 +31,16 @@ struct OpenCodeGoCLICredentialsReaderTests {
         #expect(try fixture.reader.loadCLICredential(now: Date(timeIntervalSince1970: 1_900_000_000)) == "active-oauth")
     }
 
-    @Test(arguments: ["key", "oauth"])
-    func `active specific Go credentials take precedence over generic OAuth`(type: String) throws {
+    @Test(arguments: ["key", "oauth"], ["key", "oauth"])
+    func `active specific Go credentials take precedence over the generic login`(
+        type: String,
+        genericType: String) throws
+    {
         let fixture = try Fixture()
         defer { fixture.remove() }
         try fixture.createDatabase()
-        try fixture.insert(integration: "opencode", active: true, value: Self.oauth)
+        try fixture.insert(
+            integration: "opencode", active: true, value: genericType == "key" ? Self.key : Self.oauth)
         let value = type == "oauth"
             ? #"{"type":"oauth","access":"specific-go","expires":2000000000000}"#
             : #"{"type":"\#(type)","key":"specific-go"}"#
@@ -51,7 +66,7 @@ struct OpenCodeGoCLICredentialsReaderTests {
         #expect(throws: OpenCodeGoUsageError.self) { try fixture.reader.loadCLICredential(now: Self.now) }
     }
 
-    @Test(arguments: ["empty", "inactive", "deleted", "unrelated", "generic-key"])
+    @Test(arguments: ["empty", "inactive", "deleted", "unrelated"])
     func `modern login state never resurrects stale legacy auth`(state: String) throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
@@ -65,8 +80,6 @@ struct OpenCodeGoCLICredentialsReaderTests {
             try fixture.execute("DELETE FROM credential")
         case "unrelated":
             try fixture.insert(integration: "another-provider", active: true, value: Self.oauth)
-        case "generic-key":
-            try fixture.insert(integration: "opencode", active: true, value: Self.key)
         default: break
         }
 
