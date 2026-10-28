@@ -7,6 +7,87 @@ import Testing
 
 struct OpenCodeGoCLICredentialsReaderTests {
     @Test
+    func `outgoing quota requests respect scopes account switching and logout`() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        try fixture.createDatabase()
+        try fixture.writeLegacy(Self.legacy)
+        try fixture.insert(integration: "opencode", active: true, value: Self.key)
+
+        let requests = LockIsolated<[URLRequest]>([])
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [CredentialRequestProtocol.self]
+        let session = URLSession(configuration: configuration)
+        defer {
+            session.invalidateAndCancel()
+            CredentialRequestProtocol.handler.setValue(nil)
+        }
+        CredentialRequestProtocol.handler.setValue { request in
+            var recorded = requests.value
+            recorded.append(request)
+            requests.setValue(recorded)
+            #expect(request.httpMethod == "GET")
+            #expect(request.url?.absoluteString == "https://opencode.ai/zen/go/v1/usage")
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"]))
+            return (response, Data(#"{"usage":{"rolling":{"percent":0},"monthly":{"percent":100}}}"#.utf8))
+        }
+        let strategy = OpenCodeGoAPIUsageFetchStrategy(usageFetcher: { context, token in
+            try await OpenCodeGoUsageFetcher.fetchAPIUsage(
+                apiKey: token, timeout: context.webTimeout, session: session)
+        })
+
+        let result = try await strategy.fetch(fixture.context())
+        #expect(result.sourceLabel == "cli")
+        #expect(result.usage.tertiary?.usedPercent == 100)
+        #expect(requests.value.map { $0.value(forHTTPHeaderField: "Authorization") } == ["Bearer specific-key"])
+        print("BOUNDARY unscoped: one GET to Go usage; Authorization matches ambient fixture; monthly used=100")
+
+        for scope in ["account", "manual-cookie", "workspace", "environment-workspace", "web"] {
+            let settings = ProviderSettingsSnapshot.make(opencodego: .init(
+                cookieSource: scope == "manual-cookie" ? .manual : .off,
+                manualCookieHeader: scope == "manual-cookie" ? "auth=selected-fixture" : nil,
+                workspaceID: scope == "workspace" ? "wrk_other_fixture" : nil))
+            let context = fixture.context(
+                sourceMode: scope == "web" ? .web : .api,
+                settings: settings,
+                environment: scope == "environment-workspace"
+                    ? ["CODEXBAR_OPENCODEGO_WORKSPACE_ID": "wrk_other_fixture"] : [:],
+                selectedTokenAccountID: scope == "account" ? UUID() : nil)
+            let count = requests.value.count
+            await #expect(throws: OpenCodeGoSettingsError.self) { try await strategy.fetch(context) }
+            #expect(requests.value.count == count)
+            print("BOUNDARY \(scope): missing scoped credential; additional outgoing requests=0")
+        }
+
+        _ = try await strategy.fetch(fixture.context(
+            environment: ["OPENCODE_API_KEY": "selected-fixture-key"],
+            selectedTokenAccountID: UUID()))
+        #expect(requests.value.last?.value(forHTTPHeaderField: "Authorization") == "Bearer selected-fixture-key")
+        print("BOUNDARY explicit account key: outgoing Authorization matches selected fixture, not ambient fixture")
+
+        try fixture.execute("UPDATE credential SET active = 0")
+        try fixture.insert(
+            integration: "opencode",
+            active: true,
+            value: #"{"type":"key","key":"switched-fixture-key"}"#)
+        _ = try await strategy.fetch(fixture.context())
+        #expect(requests.value.map { $0.value(forHTTPHeaderField: "Authorization") } == [
+            "Bearer specific-key", "Bearer selected-fixture-key", "Bearer switched-fixture-key",
+        ])
+        print("BOUNDARY account switch: same strategy rereads SQLite; outgoing Authorization matches new fixture")
+
+        try fixture.execute("UPDATE credential SET active = 0")
+        await #expect(throws: OpenCodeGoSettingsError.self) { try await strategy.fetch(fixture.context()) }
+        #expect(requests.value.count == 3)
+        print("BOUNDARY logout: additional outgoing requests=0; stale legacy credential is not reused")
+    }
+
+    @Test
     func `active OpenCode API key supplies Go quotas instead of stale legacy auth`() throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
@@ -418,6 +499,31 @@ struct OpenCodeGoCLICredentialsReaderTests {
                 databaseURL: self.database)
         }
 
+        func context(
+            sourceMode: ProviderSourceMode = .api,
+            settings: ProviderSettingsSnapshot? = nil,
+            environment: [String: String] = [:],
+            selectedTokenAccountID: UUID? = nil) -> ProviderFetchContext
+        {
+            let environment = ["XDG_DATA_HOME": self.home.appendingPathComponent(".local/share").path]
+                .merging(environment, uniquingKeysWith: { _, override in override })
+            let browserDetection = BrowserDetection(cacheTTL: 0)
+            return ProviderFetchContext(
+                runtime: .cli,
+                sourceMode: sourceMode,
+                includeCredits: false,
+                includeOptionalUsage: false,
+                webTimeout: 1,
+                webDebugDumpHTML: false,
+                verbose: false,
+                env: environment,
+                settings: settings,
+                fetcher: UsageFetcher(environment: environment),
+                claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection, environment: environment),
+                browserDetection: browserDetection,
+                selectedTokenAccountID: selectedTokenAccountID)
+        }
+
         init() throws {
             self.home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             try FileManager.default.createDirectory(at: self.directory, withIntermediateDirectories: true)
@@ -460,6 +566,27 @@ struct OpenCodeGoCLICredentialsReaderTests {
             try #require(result == SQLITE_OK)
             try #require(sqlite3_exec(database, sql, nil, nil, nil) == SQLITE_OK)
         }
+    }
+
+    private final class CredentialRequestProtocol: URLProtocol {
+        static let handler = LockIsolated<(@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?>(nil)
+
+        override static func canInit(with _: URLRequest) -> Bool { true }
+        override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+        override func startLoading() {
+            do {
+                let handler = try #require(Self.handler.value)
+                let (response, data) = try handler(self.request)
+                self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+                self.client?.urlProtocol(self, didLoad: data)
+                self.client?.urlProtocolDidFinishLoading(self)
+            } catch {
+                self.client?.urlProtocol(self, didFailWithError: error)
+            }
+        }
+
+        override func stopLoading() {}
     }
 }
 #endif
