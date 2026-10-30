@@ -45,7 +45,6 @@ struct OpenCodeGoCLICredentialsReaderTests {
         #expect(result.sourceLabel == "cli")
         #expect(result.usage.tertiary?.usedPercent == 100)
         #expect(requests.value.map { $0.value(forHTTPHeaderField: "Authorization") } == ["Bearer specific-key"])
-        print("BOUNDARY unscoped: one GET to Go usage; Authorization matches ambient fixture; monthly used=100")
 
         for scope in ["account", "manual-cookie", "workspace", "environment-workspace", "web"] {
             let settings = ProviderSettingsSnapshot.make(opencodego: .init(
@@ -61,14 +60,12 @@ struct OpenCodeGoCLICredentialsReaderTests {
             let count = requests.value.count
             await #expect(throws: OpenCodeGoSettingsError.self) { try await strategy.fetch(context) }
             #expect(requests.value.count == count)
-            print("BOUNDARY \(scope): missing scoped credential; additional outgoing requests=0")
         }
 
         _ = try await strategy.fetch(fixture.context(
             environment: ["OPENCODE_API_KEY": "selected-fixture-key"],
             selectedTokenAccountID: UUID()))
         #expect(requests.value.last?.value(forHTTPHeaderField: "Authorization") == "Bearer selected-fixture-key")
-        print("BOUNDARY explicit account key: outgoing Authorization matches selected fixture, not ambient fixture")
 
         try fixture.execute("UPDATE credential SET active = 0")
         try fixture.insert(
@@ -79,12 +76,10 @@ struct OpenCodeGoCLICredentialsReaderTests {
         #expect(requests.value.map { $0.value(forHTTPHeaderField: "Authorization") } == [
             "Bearer specific-key", "Bearer selected-fixture-key", "Bearer switched-fixture-key",
         ])
-        print("BOUNDARY account switch: same strategy rereads SQLite; outgoing Authorization matches new fixture")
 
         try fixture.execute("UPDATE credential SET active = 0")
         await #expect(throws: OpenCodeGoSettingsError.self) { try await strategy.fetch(fixture.context()) }
         #expect(requests.value.count == 3)
-        print("BOUNDARY logout: additional outgoing requests=0; stale legacy credential is not reused")
     }
 
     @Test
