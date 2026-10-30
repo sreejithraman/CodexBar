@@ -5,6 +5,12 @@
 ### Fixed
 
 - OpenCode Go: use the active OpenCode CLI API key stored under `opencode` for server quotas instead of falling back to local estimates.
+- OpenCodex: reduce temporary memory use when importing large usage logs (#4803).
+- Cursor: explain when the Cursor app session has expired and no browser session works, with steps to sign in again (#4804). Thanks @julianpinedayyz!
+
+### Changed
+
+- Updates: refresh Sparkle to improve update installation, download progress, and release-note handling.
 
 ## 0.82.0 — 2026-10-26
 
